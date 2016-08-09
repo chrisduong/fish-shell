@@ -6,7 +6,6 @@
 #include <locale.h>
 #include <pthread.h>
 #include <pwd.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #ifdef HAVE__NL_MSG_CAT_CNTR
@@ -14,6 +13,7 @@
 #endif
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 #include <wchar.h>
 #include <wctype.h>
@@ -160,6 +160,24 @@ static mode_t get_umask() {
     return res;
 }
 
+/// Check if the specified variable is a timezone variable.
+static bool var_is_timezone(const wcstring &key) { return key == L"TZ"; }
+
+/// Properly sets all timezone information.
+static void handle_timezone(const wchar_t *env_var_name) {
+    debug(2, L"handle_timezone() called in response to '%ls' changing", env_var_name);
+    const env_var_t val = env_get_string(env_var_name, ENV_EXPORT);
+    const std::string &value = wcs2string(val);
+    const std::string &name = wcs2string(env_var_name);
+    debug(2, L"timezone var %s='%s'", name.c_str(), value.c_str());
+    if (val.empty()) {
+        unsetenv(name.c_str());
+    } else {
+        setenv(name.c_str(), value.c_str(), 1);
+    }
+    tzset();
+}
+
 /// Check if the specified variable is a locale variable.
 static bool var_is_locale(const wcstring &key) {
     for (size_t i = 0; locale_variable[i]; i++) {
@@ -235,6 +253,8 @@ static void react_to_variable_change(const wcstring &key) {
         handle_locale(key.c_str());
     } else if (var_is_curses(key)) {
         handle_curses(key.c_str());
+    } else if (var_is_timezone(key)) {
+        handle_timezone(key.c_str());
     } else if (key == L"fish_term256" || key == L"fish_term24bit") {
         update_fish_color_support();
         reader_react_to_color_change();
@@ -260,7 +280,10 @@ static void universal_callback(fish_message_type_t type, const wchar_t *name, co
             str = L"ERASE";
             break;
         }
-        default: { break; }
+        default: {
+            assert(0 && "Unhandled fish_message_type_t constant!");
+            abort();
+        }
     }
 
     if (str) {
@@ -729,7 +752,7 @@ env_var_t env_get_string(const wcstring &key, env_mode_flags_t mode) {
 
     if (search_local || search_global) {
         /* Lock around a local region */
-        scoped_lock lock(env_lock);  //!OCLINT(has side effects)
+        scoped_lock locker(env_lock);
 
         env_node_t *env = search_local ? top : global_env;
 
@@ -898,7 +921,7 @@ static void add_key_to_string_set(const var_table_t &envs, std::set<wcstring> *s
 }
 
 wcstring_list_t env_get_names(int flags) {
-    scoped_lock lock(env_lock);  //!OCLINT(has side effects)
+    scoped_lock locker(env_lock);
 
     wcstring_list_t result;
     std::set<wcstring> names;

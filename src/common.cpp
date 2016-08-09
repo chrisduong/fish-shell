@@ -6,10 +6,8 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <limits.h>
-#include <math.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -17,7 +15,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 #include <wchar.h>
@@ -192,7 +189,7 @@ static wcstring str2wcs_internal(const char *in, const size_t in_len) {
     mbstate_t state = {};
     while (in_pos < in_len) {
         bool use_encode_direct = false;
-        size_t ret;
+        size_t ret = 0;
         wchar_t wc = 0;
 
         if ((in[in_pos] & 0xF8) == 0xF8) {
@@ -1650,19 +1647,13 @@ void format_size_safe(char buff[128], unsigned long long sz) {
     }
 }
 
+/// Return the number of seconds from the UNIX epoch, with subsecond precision. This function uses
+/// the gettimeofday function and will have the same precision as that function.
 double timef() {
     struct timeval tv;
-    int time_res = gettimeofday(&tv, 0);
-
-    if (time_res) {
-        // Fixme: What on earth is the correct parameter value for NaN? The man pages and the
-        // standard helpfully state that this parameter is implementation defined. Gcc gives a
-        // warning if a null pointer is used. But not even all mighty Google gives a hint to what
-        // value should actually be returned.
-        return nan("");
-    }
-
-    return (double)tv.tv_sec + 0.000001 * tv.tv_usec;
+    VOMIT_ON_FAILURE(gettimeofday(&tv, 0));
+    // return (double)tv.tv_sec + 0.000001 * tv.tv_usec;
+    return (double)tv.tv_sec + 1e-6 * tv.tv_usec;
 }
 
 void exit_without_destructors(int code) { _exit(code); }

@@ -3,6 +3,7 @@
 // IWYU pragma: no_include <cstddef>
 #include <assert.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <wchar.h>
 #include <wctype.h>
 #include <map>
@@ -10,6 +11,7 @@
 
 #include "common.h"
 #include "complete.h"
+#include "fallback.h"
 #include "highlight.h"
 #include "pager.h"
 #include "reader.h"
@@ -505,7 +507,7 @@ bool pager_t::completion_try_print(size_t cols, const wcstring &prefix, const co
             int search_field_written = print_max(SEARCH_FIELD_PROMPT, highlight_spec_normal,
                                                  term_width - 1, false, search_field);
             print_max(search_field_text, highlight_modifier_force_underline,
-                          term_width - search_field_written - 1, false, search_field);
+                      term_width - search_field_written - 1, false, search_field);
         }
     }
     return print;
@@ -601,10 +603,13 @@ bool pager_t::select_next_completion_in_direction(selection_direction_t directio
             case direction_page_north:
             case direction_east:
             case direction_west:
-            case direction_deselect:
-            default: {
+            case direction_deselect: {
                 // These do nothing.
                 return false;
+            }
+            default: {
+                assert(0 && "Unhandled selection_direction_t constant");
+                abort();
             }
         }
     }

@@ -1,4 +1,3 @@
-#
 # Main file for fish command completions. This file contains various
 # common helper functions for the command completions. All actual
 # completions are located in the completions subdirectory.
@@ -7,7 +6,6 @@
 #
 # Set default field separators
 #
-
 set -g IFS \n\ \t
 
 #
@@ -18,17 +16,38 @@ function __fish_default_command_not_found_handler
 end
 
 if status --is-interactive
-	# Enable truecolor/24-bit support for select terminals
-	if not set -q NVIM_LISTEN_ADDRESS # Neovim will swallow the 24bit sequences, rendering text white
-		and begin
-			set -q KONSOLE_PROFILE_NAME # KDE's konsole
-			or string match -q -- "*:*" $ITERM_SESSION_ID # Supporting versions of iTerm2 will include a colon here
-			or string match -q -- "st-*" $TERM # suckless' st
-			or test "$VTE_VERSION" -ge 3600 # Should be all gtk3-vte-based terms after version 3.6.0.0
-			or test "$COLORTERM" = truecolor -o "$COLORTERM" = 24bit # slang expects this
+        # The user has seemingly explicitly launched an old fish with too-new scripts installed.
+	if not contains "string" (builtin -n)
+		set -g __is_launched_without_string 1
+		# XXX nostring - fix old fish binaries with no `string' builtin.
+		# When executed on fish 2.2.0, the `else' block after this would
+		# force on 24-bit mode due to changes to in test behavior.
+		# These "XXX nostring" hacks were added for 2.3.1
+		set_color --bold
+		echo "You appear to be trying to launch an old fish binary with newer scripts "
+		echo "installed into" (set_color --underline)"$__fish_datadir"
+		set_color normal
+		echo -e "\nThis is an unsupported configuration.\n"
+		set_color yellow
+		echo "You may need to uninstall and reinstall fish!"
+		set_color normal
+		# Remove this code when we've made it safer to upgrade fish.
+	else
+		# Enable truecolor/24-bit support for select terminals
+		# Ignore Neovim (in 0.1.4 at least), Screen and emacs' ansi-term as they swallow the sequences, rendering the text white.
+		if not set -q NVIM_LISTEN_ADDRESS
+			and not set -q STY
+			and not string match -q -- 'eterm*' $TERM
+			and begin
+				set -q KONSOLE_PROFILE_NAME # KDE's konsole
+				or string match -q -- "*:*" $ITERM_SESSION_ID # Supporting versions of iTerm2 will include a colon here
+				or string match -q -- "st-*" $TERM # suckless' st
+				or test "$VTE_VERSION" -ge 3600 # Should be all gtk3-vte-based terms after version 3.6.0.0
+				or test "$COLORTERM" = truecolor -o "$COLORTERM" = 24bit # slang expects this
+			end
+			# Only set it if it isn't to allow override by setting to 0
+			set -q fish_term24bit; or set -g fish_term24bit 1
 		end
-		# Only set it if it isn't to allow override by setting to 0
-		set -q fish_term24bit; or set -g fish_term24bit 1
 	end
 else
 	# Hook up the default as the principal command_not_found handler
@@ -105,7 +124,7 @@ set -g __fish_tmp_path $PATH
 function __fish_load_path_helper_paths
 	# We want to rearrange the path to reflect this order. Delete that path component if it exists and then prepend it.
 	# Since we are prepending but want to preserve the order of the input file, we reverse the array, append, and then reverse it again
-	set __fish_tmp_path $__fish_tmp_path[-1..1] 
+	set __fish_tmp_path $__fish_tmp_path[-1..1]
 	while read -l new_path_comp
 		if test -d $new_path_comp
 			set -l where (contains -i $new_path_comp $__fish_tmp_path)
@@ -115,7 +134,7 @@ function __fish_load_path_helper_paths
 	end
 	set __fish_tmp_path $__fish_tmp_path[-1..1]
 end
-test -r /etc/paths ; and __fish_load_path_helper_paths < /etc/paths 
+test -r /etc/paths ; and __fish_load_path_helper_paths < /etc/paths
 for pathfile in /etc/paths.d/* ; __fish_load_path_helper_paths < $pathfile ; end
 set -xg PATH $__fish_tmp_path
 set -e __fish_tmp_path
@@ -176,6 +195,11 @@ function . --description 'Evaluate contents of file (deprecated, see "source")' 
 	end
 end
 
+# Set the locale if it isn't explicitly set. Allowing the lack of locale env vars to imply the
+# C/POSIX locale causes too many problems. Do this before reading the snippets because they might be
+# in UTF-8 (with non-ASCII characters).
+__fish_set_locale
+
 # As last part of initialization, source the conf directories
 # Implement precedence (User > Admin > Extra (e.g. vendors) > Fish) by basically doing "basename"
 set -l sourcelist
@@ -189,7 +213,7 @@ for file in $configdir/fish/conf.d/*.fish $__fish_sysconfdir/conf.d/*.fish $__ex
 end
 
 # Upgrade pre-existing abbreviations from the old "key=value" to the new "key value" syntax
-# This needs to be in share/config.fish because __fish_config_interactive is called after sourcing config.fish, which might contain abbr calls
+# This needs to be in share/config.fish because __fish_config_interactive is called after 2sourcing config.fish, which might contain abbr calls
 if not set -q __fish_init_2_3_0
 	set -l fab
 	for abb in $fish_user_abbreviations
@@ -205,15 +229,6 @@ end
 #
 
 if status --is-login
-
-	# Check for i18n information in
-	# /etc/sysconfig/i18n
-
-	if test -f /etc/sysconfig/i18n
-		string match -r '^[a-zA-Z]*=.*' < /etc/sysconfig/i18n | while read -l line
-			set -gx (string split '=' -m 1 -- $line | string replace -ra '"([^"]+)"' '$1' | string replace -ra "'([^']+)'" '$1')
-		end
-	end
 
 	#
 	# Put linux consoles in unicode mode.

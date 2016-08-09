@@ -2,7 +2,6 @@
 #ifndef FISH_PARSER_H
 #define FISH_PARSER_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <list>
 #include <vector>
@@ -272,7 +271,7 @@ class parser_t {
     block_t *block_at_index(size_t idx);
 
     /// Returns the current (innermost) block.
-    block_t *const current_block();
+    block_t *current_block();
 
     /// Count of blocks.
     size_t block_count() const { return block_stack.size(); }
